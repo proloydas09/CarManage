@@ -1,0 +1,496 @@
+// This is your Prisma schema file
+// Learn more about it: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  OWNER
+  ADMIN
+  MANAGER
+  VIEWER
+}
+
+enum PlanTier {
+  STARTER
+  GROWTH
+  SCALE
+}
+
+enum CarStatus {
+  ACTIVE
+  IDLE
+  IN_SERVICE
+  SOLD
+  SCRAPPED
+}
+
+enum FuelType {
+  PETROL
+  DIESEL
+  CNG
+  ELECTRIC
+  HYBRID
+}
+
+enum DepreciationMethod {
+  STRAIGHT_LINE
+  DECLINING_BALANCE
+}
+
+enum CostCategory {
+  FUEL
+  MAINTENANCE
+  INSURANCE
+  EMI
+  DRIVER_SALARY
+  TOLL
+  PERMIT
+  TAX
+  CLEANING
+  TYRE
+  SPARE_PARTS
+  OTHER
+}
+
+enum EarningSource {
+  BOOKING
+  RENTAL
+  SCHOOL_CONTRACT
+  CORPORATE_CONTRACT
+  OTHER
+}
+
+enum DriverStatus {
+  ACTIVE
+  ON_LEAVE
+  TERMINATED
+}
+
+enum CompensationType {
+  FIXED
+  PERCENTAGE
+  HYBRID
+}
+
+enum DocumentType {
+  RC
+  INSURANCE
+  PERMIT
+  FITNESS
+  PUC
+  ROAD_TAX
+  DRIVER_LICENSE
+  DRIVER_AADHAR
+  OTHER
+}
+
+enum BookingStatus {
+  INQUIRY
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum SettlementStatus {
+  PENDING
+  APPROVED
+  PAID
+}
+
+enum NotificationType {
+  DOCUMENT_EXPIRY
+  SETTLEMENT_DUE
+  BOOKING_REMINDER
+  PLAN_LIMIT
+  PAYMENT_DUE
+  SYSTEM
+}
+
+// ─── Org & Users ──────────────────────────────────────────────────────────────
+
+model Organisation {
+  id          String    @id @default(cuid())
+  name        String
+  phone       String?
+  email       String?
+  address     String?
+  gstin       String?
+  logoUrl     String?
+  plan        PlanTier  @default(STARTER)
+  planExpiry  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  members       OrgMember[]
+  cars          Car[]
+  drivers       Driver[]
+  customers     Customer[]
+  bookings      Booking[]
+  notifications Notification[]
+  invites       OrgInvite[]
+
+  @@map("organisations")
+}
+
+model User {
+  id           String    @id @default(cuid())
+  name         String
+  email        String    @unique
+  passwordHash String
+  phone        String?
+  avatarUrl    String?
+  isVerified   Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  memberships  OrgMember[]
+  refreshTokens RefreshToken[]
+
+  @@map("users")
+}
+
+model OrgMember {
+  id        String    @id @default(cuid())
+  orgId     String
+  userId    String
+  role      UserRole  @default(VIEWER)
+  joinedAt  DateTime  @default(now())
+
+  org  Organisation @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, userId])
+  @@map("org_members")
+}
+
+model OrgInvite {
+  id        String    @id @default(cuid())
+  orgId     String
+  email     String
+  role      UserRole
+  token     String    @unique @default(cuid())
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  org Organisation @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@map("org_invites")
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  revokedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
+
+// ─── Cars ─────────────────────────────────────────────────────────────────────
+
+model Car {
+  id                   String             @id @default(cuid())
+  orgId                String
+  registrationNumber   String
+  make                 String
+  model                String
+  year                 Int
+  fuelType             FuelType
+  status               CarStatus          @default(ACTIVE)
+  purchasePricePaise   BigInt             // stored as paise
+  purchaseDate         DateTime
+  depreciationMethod   DepreciationMethod @default(STRAIGHT_LINE)
+  depreciationRate     Decimal            @db.Decimal(5, 2) // annual %
+  currentOdometer      Int                @default(0)
+  color                String?
+  seatingCapacity      Int?
+  notes                String?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  org            Organisation    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  costs          Cost[]
+  earnings       Earning[]
+  drivers        Driver[]        @relation("CarDriver")
+  bookings       Booking[]
+  documents      Document[]
+  odometerLogs   OdometerLog[]
+
+  @@unique([orgId, registrationNumber])
+  @@map("cars")
+}
+
+model OdometerLog {
+  id          String   @id @default(cuid())
+  carId       String
+  reading     Int
+  readingDate DateTime
+  notes       String?
+  createdAt   DateTime @default(now())
+
+  car Car @relation(fields: [carId], references: [id], onDelete: Cascade)
+
+  @@map("odometer_logs")
+}
+
+// ─── Costs ────────────────────────────────────────────────────────────────────
+
+model Cost {
+  id           String      @id @default(cuid())
+  orgId        String
+  carId        String
+  category     CostCategory
+  amountPaise  BigInt
+  date         DateTime
+  description  String?
+  vendorName   String?
+  receiptUrl   String?
+  isRecurring  Boolean     @default(false)
+  recurringDay Int?        // day of month for recurring
+  parentCostId String?     // reference to original recurring cost
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  car Car @relation(fields: [carId], references: [id], onDelete: Cascade)
+
+  @@index([carId, date])
+  @@index([orgId, date])
+  @@map("costs")
+}
+
+// ─── Earnings ─────────────────────────────────────────────────────────────────
+
+model Earning {
+  id          String        @id @default(cuid())
+  orgId       String
+  carId       String
+  source      EarningSource
+  amountPaise BigInt
+  date        DateTime
+  customerId  String?
+  bookingId   String?
+  description String?
+  tripKm      Decimal?      @db.Decimal(8, 2)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  car      Car       @relation(fields: [carId], references: [id], onDelete: Cascade)
+  customer Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  booking  Booking?  @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+
+  @@index([carId, date])
+  @@index([orgId, date])
+  @@map("earnings")
+}
+
+// ─── Drivers ──────────────────────────────────────────────────────────────────
+
+model Driver {
+  id                  String           @id @default(cuid())
+  orgId               String
+  assignedCarId       String?
+  name                String
+  phone               String
+  email               String?
+  licenseNumber       String
+  licenseExpiry       DateTime
+  aadharNumber        String?
+  address             String?
+  joiningDate         DateTime
+  status              DriverStatus     @default(ACTIVE)
+  compensationType    CompensationType
+  fixedSalaryPaise    BigInt?
+  percentageRate      Decimal?         @db.Decimal(5, 2)
+  thresholdPaise      BigInt?
+  notes               String?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  org         Organisation  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  assignedCar Car?          @relation("CarDriver", fields: [assignedCarId], references: [id], onDelete: SetNull)
+  bookings    Booking[]
+  documents   Document[]
+  advances    DriverAdvance[]
+  settlements DriverSettlement[]
+
+  @@map("drivers")
+}
+
+model DriverAdvance {
+  id          String   @id @default(cuid())
+  driverId    String
+  amountPaise BigInt
+  date        DateTime
+  reason      String?
+  settledIn   String?  // settlement id when deducted
+  createdAt   DateTime @default(now())
+
+  driver Driver @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  @@map("driver_advances")
+}
+
+model DriverSettlement {
+  id              String           @id @default(cuid())
+  driverId        String
+  month           String           // "2024-01"
+  grossEarningsPaise BigInt
+  advancesDeductedPaise BigInt     @default(0)
+  salaryDuePaise  BigInt
+  netPayablePaise BigInt
+  status          SettlementStatus @default(PENDING)
+  approvedAt      DateTime?
+  paidAt          DateTime?
+  notes           String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  driver Driver @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  @@unique([driverId, month])
+  @@map("driver_settlements")
+}
+
+// ─── Customers ────────────────────────────────────────────────────────────────
+
+model Customer {
+  id        String   @id @default(cuid())
+  orgId     String
+  name      String
+  phone     String
+  email     String?
+  address   String?
+  gstin     String?
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  org      Organisation @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  bookings Booking[]
+  earnings Earning[]
+
+  @@map("customers")
+}
+
+// ─── Bookings ─────────────────────────────────────────────────────────────────
+
+model Booking {
+  id                   String        @id @default(cuid())
+  orgId                String
+  carId                String
+  driverId             String?
+  customerId           String?
+  customerName         String?
+  customerPhone        String?
+  source               EarningSource @default(BOOKING)
+  status               BookingStatus @default(INQUIRY)
+  pickupLocation       String
+  dropLocation         String?
+  startDate            DateTime
+  endDate              DateTime?
+  estimatedKm          Decimal?      @db.Decimal(8, 2)
+  actualKm             Decimal?      @db.Decimal(8, 2)
+  quotedAmountPaise    BigInt
+  advancePaidPaise     BigInt        @default(0)
+  finalAmountPaise     BigInt?
+  endOdometer          Int?
+  notes                String?
+  completedAt          DateTime?
+  cancelledAt          DateTime?
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+
+  org      Organisation @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  car      Car          @relation(fields: [carId], references: [id], onDelete: Cascade)
+  driver   Driver?      @relation(fields: [driverId], references: [id], onDelete: SetNull)
+  customer Customer?    @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  invoice  Invoice?
+  earnings Earning[]
+
+  @@index([orgId, startDate])
+  @@index([carId, startDate])
+  @@map("bookings")
+}
+
+// ─── Invoices ─────────────────────────────────────────────────────────────────
+
+model Invoice {
+  id           String        @id @default(cuid())
+  bookingId    String        @unique
+  invoiceNo    String        @unique
+  status       InvoiceStatus @default(DRAFT)
+  pdfUrl       String?
+  issuedAt     DateTime      @default(now())
+  dueDate      DateTime?
+  paidAt       DateTime?
+  notes        String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@map("invoices")
+}
+
+// ─── Documents ────────────────────────────────────────────────────────────────
+
+model Document {
+  id         String       @id @default(cuid())
+  orgId      String
+  carId      String?
+  driverId   String?
+  type       DocumentType
+  expiryDate DateTime?
+  fileUrl    String?
+  notes      String?
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  car    Car?    @relation(fields: [carId], references: [id], onDelete: Cascade)
+  driver Driver? @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  @@index([expiryDate])
+  @@map("documents")
+}
+
+// ─── Notifications ────────────────────────────────────────────────────────────
+
+model Notification {
+  id        String           @id @default(cuid())
+  orgId     String
+  type      NotificationType
+  title     String
+  body      String
+  entityId  String?
+  isRead    Boolean          @default(false)
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  org Organisation @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, isRead, createdAt])
+  @@map("notifications")
+}
