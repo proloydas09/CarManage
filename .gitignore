@@ -42,3 +42,10 @@ coverage/
 
 # TypeScript build info
 *.tsbuildinfo
+
+# Local Database Data
+pgdata/
+pg_log.txt
+redis-bin/
+dump.rdb
+

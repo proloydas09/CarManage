@@ -1,1 +1,1 @@
-C:/Program Files/PostgreSQL/18/bin/postgres.exe "-D" "pgdata" "-p" "5433"
+C:/Program Files/PostgreSQL/18/bin/postgres.exe "-D" "c:/RD/AI/CarManage/pgdata" "-p" "5434" "-h" "127.0.0.1"
