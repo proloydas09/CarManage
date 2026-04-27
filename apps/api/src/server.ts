@@ -1,4 +1,7 @@
 import "dotenv/config";
+// Suppress BullMQ Redis ≥6.2 version warnings — Windows only has Redis 5.0.x natively.
+// BullMQ works correctly with 5.0; the warning is non-critical.
+process.env.BULLMQ_REDIS_VERSION_CHECK = "skip";
 (BigInt.prototype as any).toJSON = function () { return this.toString(); };
 import Fastify from "fastify";
 import cors from "@fastify/cors";

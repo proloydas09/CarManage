@@ -6,6 +6,13 @@ import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../lib/jw
 import { authenticate } from "../middleware/auth";
 import { RegisterSchema, LoginSchema, RefreshTokenSchema } from "@antigravity/types";
 
+/** Generate a default avatar URL from user initials when no custom avatar is set */
+function resolveAvatarUrl(avatarUrl: string | null | undefined, name: string): string {
+  if (avatarUrl) return avatarUrl;
+  const encoded = encodeURIComponent(name);
+  return `https://ui-avatars.com/api/?name=${encoded}&background=6366f1&color=fff&size=128&bold=true`;
+}
+
 export async function authRoutes(app: FastifyInstance) {
   // POST /auth/register
   app.post("/register", async (req, reply) => {
@@ -80,7 +87,7 @@ export async function authRoutes(app: FastifyInstance) {
     return reply.send({
       success: true,
       data: {
-        user: { id: user.id, name: user.name, email: user.email, avatarUrl: user.avatarUrl },
+        user: { id: user.id, name: user.name, email: user.email, avatarUrl: resolveAvatarUrl(user.avatarUrl, user.name) },
         org: { id: membership.org.id, name: membership.org.name, plan: membership.org.plan },
         role: membership.role,
         tokens: { accessToken, refreshToken },
@@ -149,9 +156,12 @@ export async function authRoutes(app: FastifyInstance) {
       include: { org: { select: { id: true, name: true, plan: true, planExpiry: true, logoUrl: true, gstin: true } } },
     });
 
+    // Resolve avatar URL so clients always get a usable URL
+    const resolvedUser = user ? { ...user, avatarUrl: resolveAvatarUrl(user.avatarUrl, user.name) } : user;
+
     return reply.send({
       success: true,
-      data: { user, org: membership?.org, role: membership?.role },
+      data: { user: resolvedUser, org: membership?.org, role: membership?.role },
     });
   });
 }
