@@ -23,4 +23,4 @@ COPY --from=builder /app/apps/api/node_modules ./apps/api/node_modules
 
 EXPOSE 4000
 WORKDIR /app/apps/api
-CMD ["pnpm", "start"]
+CMD ["sh", "-c", "npx prisma db push --skip-generate && pnpm start"]
