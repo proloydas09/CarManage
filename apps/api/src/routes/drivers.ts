@@ -171,7 +171,7 @@ export async function driverRoutes(app: FastifyInstance) {
     const advances = await prisma.driverAdvance.findMany({
       where: { driverId: id, settledIn: null },
     });
-    const advancesDeductedPaise = advances.reduce((sum, a) => sum + Number(a.amountPaise), 0);
+    const advancesDeductedPaise = advances.reduce((sum: number, a: any) => sum + Number(a.amountPaise), 0);
 
     // Calculate salary due
     const salaryDuePaise = calculateDriverPay({
@@ -184,7 +184,7 @@ export async function driverRoutes(app: FastifyInstance) {
 
     const netPayablePaise = Math.max(0, salaryDuePaise - advancesDeductedPaise);
 
-    const settlement = await prisma.$transaction(async (tx) => {
+    const settlement = await prisma.$transaction(async (tx: any) => {
       const s = await tx.driverSettlement.create({
         data: {
           driverId: id,
@@ -199,7 +199,7 @@ export async function driverRoutes(app: FastifyInstance) {
       // Mark advances as settled
       if (advances.length > 0) {
         await tx.driverAdvance.updateMany({
-          where: { id: { in: advances.map((a) => a.id) } },
+          where: { id: { in: advances.map((a: any) => a.id) } },
           data: { settledIn: s.id },
         });
       }

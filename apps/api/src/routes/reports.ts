@@ -19,7 +19,7 @@ export async function reportRoutes(app: FastifyInstance) {
     });
 
     const carPnl = await Promise.all(
-      cars.map(async (car) => {
+      cars.map(async (car: any) => {
         const [earningsAgg, costsAgg] = await Promise.all([
           prisma.earning.aggregate({ where: { carId: car.id, date: { gte: start, lte: end } }, _sum: { amountPaise: true } }),
           prisma.cost.aggregate({ where: { carId: car.id, date: { gte: start, lte: end } }, _sum: { amountPaise: true } }),
@@ -42,8 +42,8 @@ export async function reportRoutes(app: FastifyInstance) {
       })
     );
 
-    const totalRevenuePaise = carPnl.reduce((s, c) => s + c.revenuePaise, 0);
-    const totalCostPaise = carPnl.reduce((s, c) => s + c.costPaise, 0);
+    const totalRevenuePaise = carPnl.reduce((s: number, c: any) => s + c.revenuePaise, 0);
+    const totalCostPaise = carPnl.reduce((s: number, c: any) => s + c.costPaise, 0);
 
     return reply.send({
       success: true,
@@ -102,11 +102,11 @@ export async function reportRoutes(app: FastifyInstance) {
       orderBy: { _sum: { amountPaise: "desc" } },
     });
 
-    const total = breakdown.reduce((s, b) => s + Number(b._sum.amountPaise ?? 0), 0);
+    const total = breakdown.reduce((s: number, b: any) => s + Number(b._sum.amountPaise ?? 0), 0);
 
     return reply.send({
       success: true,
-      data: breakdown.map((b) => ({
+      data: breakdown.map((b: any) => ({
         category: b.category,
         amountPaise: Number(b._sum.amountPaise ?? 0),
         count: b._count,

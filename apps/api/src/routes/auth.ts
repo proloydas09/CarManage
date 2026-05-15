@@ -30,7 +30,7 @@ export async function authRoutes(app: FastifyInstance) {
 
     const passwordHash = await bcrypt.hash(password, 12);
 
-    const [user, org] = await prisma.$transaction(async (tx) => {
+    const [user, org] = await prisma.$transaction(async (tx: any) => {
       const user = await tx.user.create({ data: { name, email, passwordHash, phone, isVerified: true } });
       const org = await tx.organisation.create({ data: { name: orgName } });
       await tx.orgMember.create({ data: { orgId: org.id, userId: user.id, role: "OWNER" } });
